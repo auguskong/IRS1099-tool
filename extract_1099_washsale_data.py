@@ -220,14 +220,24 @@ def generate_current_page_dataframe(text):
 df = generate_current_page_dataframe(text)
 
 
-# In[14]:
+def extract_data_from_one_page(page):
+    raw_text = extract_single_page_text(page)
+    # print("raw_text", raw_text)
+    raw_characters = extract_characters(raw_text)
+    # print("raw_characters", raw_characters)
+    sorted_rows = arrange_text(raw_characters)
+    # print("sorted_rows", sorted_rows)
+    text = arrange_and_extract_text(raw_characters)
+    df = generate_current_page_dataframe(text)
+    return df
 
-
-df
-
-
-# In[ ]:
-
+def extract_data_from_all_pages(pages):
+    columns = ['Date sold or disposed', 'Quantity', 'Proceeds', 'Date acquired', 'Cost or other basis', 'Wash sale loss disallowed (W)', 'Code', 'Gain or loss(-)', 'Additional information']
+    df_total = pd.DataFrame(columns=columns)
+    for p in pages:
+        df_curr = extract_data_from_one_page(p)
+        df_total = df_total.append(df_curr)
+    return df_total
 
 
 
