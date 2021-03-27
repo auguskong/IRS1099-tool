@@ -158,15 +158,15 @@ def generate_current_page_dataframe(text):
     columns = ['Date sold or disposed', 'Quantity', 'Proceeds', 'Date acquired', 'Cost or other basis', 'Wash sale loss disallowed (W)', 'Code', 'Gain or loss(-)', 'Additional information']
     df = pd.DataFrame(columns=columns)
     for row in text:
-        if len(row) == 5:
+        if len(row) == 5 and row[3] == "W":
             row = row.copy()
             row.insert(0, "-")
-            row.insert(1, "-")
+            row.insert(1, "Total")
             row.insert(3, "-")
             row.insert(8, "-")
             temp = pd.DataFrame([row], columns=columns)
             df = df.append(temp, ignore_index=True)
-        elif len(row) == 9:
+        elif len(row) == 9 and row[6] == "W":
             df_row = pd.DataFrame([row], columns=columns)
             df = df.append(df_row, ignore_index=True)
         elif len(row) == 8 and row[5] == "W":
@@ -179,9 +179,28 @@ def generate_current_page_dataframe(text):
     return df
 
 df = generate_current_page_dataframe(text)
-df
+
+def extract_data_from_one_page(page):
+    raw_text = extract_single_page_text(page)
+    # print("raw_text", raw_text)
+    raw_characters = extract_characters(raw_text)
+    # print("raw_characters", raw_characters)
+    sorted_rows = arrange_text(raw_characters)
+    # print("sorted_rows", sorted_rows)
+    text = arrange_and_extract_text(raw_characters)
+    df = generate_current_page_dataframe(text)
+    return df
 
 
+def extract_data_from_all_pages(pages):
+    columns = ['Date sold or disposed', 'Quantity', 'Proceeds', 'Date acquired', 'Cost or other basis', 'Wash sale loss disallowed (W)', 'Code', 'Gain or loss(-)', 'Additional information']
+    df_total = pd.DataFrame(columns=columns)
+    for p in pages:
+        df_curr = extract_data_from_one_page(p)
+        df_total = df_total.append(df_curr)
+    return df_total
 
-
-
+FILE_NAME = "1099-TD.pdf"
+COL_MARGIN = 0.5
+page_layouts = extract_page_layouts(FILE_NAME)
+df_total = extract_data_from_all_pages(page_layouts)
