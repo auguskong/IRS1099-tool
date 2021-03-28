@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-# In[2]:
-
-
 from pdfquery import PDFQuery
 import pdfminer
 from pdfminer.pdfpage import PDFPage, PDFTextExtractionNotAllowed
@@ -12,16 +8,11 @@ from pdfminer.layout import LAParams
 from pdfminer.converter import PDFPageAggregator
 from pdfminer.layout import LTTextBoxHorizontal, LTRect, LTLine
 
-
 import matplotlib.pyplot as plt
 from matplotlib import patches
 get_ipython().run_line_magic('matplotlib', 'inline')
 
 import pandas as pd
-
-
-# In[3]:
-
 
 def extract_page_layouts(file):
     """
@@ -84,10 +75,6 @@ def extract_single_page_text(current_page):
 raw_text = extract_single_page_text(page_layouts[0])
 raw_text
 
-
-# In[7]:
-
-
 def flatten(lst):
     """Flattens a list of lists"""
     return [item for sublist in lst for item in sublist]
@@ -105,19 +92,10 @@ def extract_characters(element):
 
     if isinstance(element, list):
         return flatten([extract_characters(l) for l in element])
-
     return []
-
-
-# In[8]:
-
 
 raw_characters = extract_characters(raw_text)
 raw_characters
-
-
-# In[9]:
-
 
 def arrange_text(characters):
     """
@@ -137,10 +115,6 @@ def arrange_text(characters):
 sorted_rows = arrange_text(raw_characters)
 sorted_rows
 
-
-# In[10]:
-
-
 col_margin = 0.5
 def create_separators(sorted_rows, margin):
     """Creates bounding boxes to fill the space between columns"""
@@ -154,10 +128,6 @@ def create_separators(sorted_rows, margin):
     return separators
 
 separators = create_separators(sorted_rows, col_margin)
-
-
-# In[11]:
-
 
 def arrange_and_extract_text(characters, margin=0.5):
     
@@ -184,24 +154,19 @@ def arrange_and_extract_text(characters, margin=0.5):
 text = arrange_and_extract_text(raw_characters)
 text
 
-
-# In[12]:
-
-
-
 def generate_current_page_dataframe(text):
     columns = ['Date sold or disposed', 'Quantity', 'Proceeds', 'Date acquired', 'Cost or other basis', 'Wash sale loss disallowed (W)', 'Code', 'Gain or loss(-)', 'Additional information']
     df = pd.DataFrame(columns=columns)
     for row in text:
-        if len(row) == 5:
+        if len(row) == 5 and row[3] == "W":
             row = row.copy()
             row.insert(0, "-")
-            row.insert(1, "-")
+            row.insert(1, "Total")
             row.insert(3, "-")
             row.insert(8, "-")
             temp = pd.DataFrame([row], columns=columns)
             df = df.append(temp, ignore_index=True)
-        elif len(row) == 9:
+        elif len(row) == 9 and row[6] == "W":
             df_row = pd.DataFrame([row], columns=columns)
             df = df.append(df_row, ignore_index=True)
         elif len(row) == 8 and row[5] == "W":
@@ -213,21 +178,29 @@ def generate_current_page_dataframe(text):
             continue
     return df
 
-
-# In[13]:
-
-
 df = generate_current_page_dataframe(text)
 
+def extract_data_from_one_page(page):
+    raw_text = extract_single_page_text(page)
+    # print("raw_text", raw_text)
+    raw_characters = extract_characters(raw_text)
+    # print("raw_characters", raw_characters)
+    sorted_rows = arrange_text(raw_characters)
+    # print("sorted_rows", sorted_rows)
+    text = arrange_and_extract_text(raw_characters)
+    df = generate_current_page_dataframe(text)
+    return df
 
-# In[14]:
 
+def extract_data_from_all_pages(pages):
+    columns = ['Date sold or disposed', 'Quantity', 'Proceeds', 'Date acquired', 'Cost or other basis', 'Wash sale loss disallowed (W)', 'Code', 'Gain or loss(-)', 'Additional information']
+    df_total = pd.DataFrame(columns=columns)
+    for p in pages:
+        df_curr = extract_data_from_one_page(p)
+        df_total = df_total.append(df_curr)
+    return df_total
 
-df
-
-
-# In[ ]:
-
-
-
-
+FILE_NAME = "1099-TD.pdf"
+COL_MARGIN = 0.5
+page_layouts = extract_page_layouts(FILE_NAME)
+df_total = extract_data_from_all_pages(page_layouts)
