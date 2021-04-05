@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 # coding: utf-8
+
+# In[1]:
+
+
 from pdfquery import PDFQuery
 import pdfminer
 from pdfminer.pdfpage import PDFPage, PDFTextExtractionNotAllowed
@@ -13,6 +17,10 @@ from matplotlib import patches
 get_ipython().run_line_magic('matplotlib', 'inline')
 
 import pandas as pd
+
+
+# In[45]:
+
 
 def extract_page_layouts(file):
     """
@@ -41,7 +49,7 @@ def extract_page_layouts(file):
     return layouts
 
 
-# In[4]:
+# In[46]:
 
 
 TEXT_ELEMENTS = [
@@ -51,14 +59,8 @@ TEXT_ELEMENTS = [
     pdfminer.layout.LTTextLineHorizontal
 ]
 
-FILE_NAME = "test.pdf"
-COL_MARGIN = 0.5
-page_layouts = extract_page_layouts(FILE_NAME)
-print(page_layouts)
-print("Number of pages: %d" % len(page_layouts))
 
-
-# In[5]:
+# In[47]:
 
 
 def extract_single_page_text(current_page):
@@ -69,11 +71,8 @@ def extract_single_page_text(current_page):
     return text
 
 
-# In[6]:
+# In[48]:
 
-
-raw_text = extract_single_page_text(page_layouts[0])
-raw_text
 
 def flatten(lst):
     """Flattens a list of lists"""
@@ -92,10 +91,12 @@ def extract_characters(element):
 
     if isinstance(element, list):
         return flatten([extract_characters(l) for l in element])
+
     return []
 
-raw_characters = extract_characters(raw_text)
-raw_characters
+
+# In[49]:
+
 
 def arrange_text(characters):
     """
@@ -112,22 +113,9 @@ def arrange_text(characters):
         sorted_rows.append(sorted_row)
     return sorted_rows
 
-sorted_rows = arrange_text(raw_characters)
-sorted_rows
 
-col_margin = 0.5
-def create_separators(sorted_rows, margin):
-    """Creates bounding boxes to fill the space between columns"""
-    separators = []
-    for row in sorted_rows:
-        for idx, c in enumerate(row[:-1]): 
-            if (row[idx+1].bbox[0] - c.bbox[2]) > margin:
-                bbox = (c.bbox[2], c.bbox[3], row[idx+1].bbox[0], row[idx+1].bbox[1])
-                separator = pdfminer.layout.LTRect(linewidth=2, bbox=bbox)
-                separators.append(separator)
-    return separators
+# In[50]:
 
-separators = create_separators(sorted_rows, col_margin)
 
 def arrange_and_extract_text(characters, margin=0.5):
     
@@ -151,8 +139,9 @@ def arrange_and_extract_text(characters, margin=0.5):
         row_texts.append(row_text)
     return row_texts
 
-text = arrange_and_extract_text(raw_characters)
-text
+
+# In[51]:
+
 
 def generate_current_page_dataframe(text):
     columns = ['Date sold or disposed', 'Quantity', 'Proceeds', 'Date acquired', 'Cost or other basis', 'Wash sale loss disallowed (W)', 'Code', 'Gain or loss(-)', 'Additional information']
@@ -178,7 +167,9 @@ def generate_current_page_dataframe(text):
             continue
     return df
 
-df = generate_current_page_dataframe(text)
+
+# In[52]:
+
 
 def extract_data_from_one_page(page):
     raw_text = extract_single_page_text(page)
@@ -192,6 +183,9 @@ def extract_data_from_one_page(page):
     return df
 
 
+# In[53]:
+
+
 def extract_data_from_all_pages(pages):
     columns = ['Date sold or disposed', 'Quantity', 'Proceeds', 'Date acquired', 'Cost or other basis', 'Wash sale loss disallowed (W)', 'Code', 'Gain or loss(-)', 'Additional information']
     df_total = pd.DataFrame(columns=columns)
@@ -200,7 +194,110 @@ def extract_data_from_all_pages(pages):
         df_total = df_total.append(df_curr)
     return df_total
 
+
+# In[90]:
+
+
 FILE_NAME = "1099-TD.pdf"
 COL_MARGIN = 0.5
 page_layouts = extract_page_layouts(FILE_NAME)
-df_total = extract_data_from_all_pages(page_layouts)
+df_total_raw = extract_data_from_all_pages(page_layouts)
+df_clean = df_total_raw.loc[df_total_raw['Quantity'] != 'Total']
+
+
+# In[92]:
+
+
+df_match_8949_form = df_clean[['Quantity', 'Date acquired', 'Date sold or disposed', 'Proceeds', 'Cost or other basis', 'Code', 'Wash sale loss disallowed (W)','Gain or loss(-)']]
+
+wash_sale_data = df_match_8949_form.to_dict('records')
+
+
+# In[97]:
+
+
+df_clean_sorted = df_clean.reset_index(drop=True) #use the default index
+
+
+# In[99]:
+
+
+def total_value_for_each_form_page(col_name):
+    df_col = df_clean_sorted[col_name]
+    df_col.convert_objects(convert_numeric=True)
+
+    dp_no_comma = df_col.apply(lambda row: row.replace(',', ''))
+    dp_no_comma = dp_no_comma.convert_objects(convert_numeric=True)
+    N = 14
+    
+    return dp_no_comma.groupby(dp_no_comma.index // N).sum(level=0)
+
+
+# In[ ]:
+
+
+total_value_for_each_form_page('Proceeds')
+
+
+# In[ ]:
+
+
+total_value_for_each_form_page('Cost or other basis')
+
+
+# In[ ]:
+
+
+total_value_for_each_form_page('Wash sale loss disallowed (W)')
+
+
+# In[ ]:
+
+
+total_value_for_each_form_page('Gain or loss(-)')
+
+
+# In[ ]:
+
+
+import pyautogui as pgui
+import pyperclip as pclip
+import time
+
+x_coordinates_dict = {
+    "date_acquired": 600,
+    "date_sold": 650,
+    "proceeds": 700,
+    "cost_basis": 780,
+    "code_from_instructions": 840,
+    "amount_of_adjustment": 900,
+    "gain_or_loss": 980
+}
+
+def fill_8949_form():
+    first_row_y_coordinate = 420
+    row_interval = 26
+    num_rows = 14 # form 8949
+    
+    curr_data_index = 28
+    curr_row_index = 0
+
+    x_coordinates = [500, 600, 650, 700, 780, 840, 900, 980]
+    
+    pgui.click(x_coordinates[0], first_row_y_coordinate, interval=0.5)
+    wash_sale_data_keys = list(wash_sale_data[0])
+
+    print("Start filling the form")
+    while curr_row_index < num_rows:
+        curr_row_y_coordinate = first_row_y_coordinate + row_interval * curr_row_index
+        print("filling form row", curr_row_index + 1, " data index is: ", curr_data_index)
+        for col_idx, col_x_coordinate in enumerate(x_coordinates):
+            pgui.click(col_x_coordinate, curr_row_y_coordinate, interval=0.2)
+            time.sleep(1)
+            pclip.copy(wash_sale_data[curr_data_index][wash_sale_data_keys[col_idx]])
+            pgui.hotkey('command', 'v')
+        curr_row_index += 1
+        curr_data_index += 1
+    print("complete filling the form")
+       
+
